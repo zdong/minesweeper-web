@@ -157,3 +157,113 @@
     background: #f44336;
     color: white;
 }
+
+.message.win {
+    text-align: center;
+}
+
+.score-submit {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.score-submit input {
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 2px solid #ccc;
+    border-radius: 4px;
+}
+
+.score-submit button {
+    padding: 8px 16px;
+    background: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.score-submit button:disabled {
+    background: #90caf9;
+    cursor: not-allowed;
+}
+
+.score-submitted {
+    margin-top: 10px;
+    color: #fff;
+    font-size: 14px;
+}
+
+.scoreboard-section {
+    margin-top: 30px;
+    background: #fff;
+    border: 3px solid;
+    border-color: #808080 #fff #fff #808080;
+    padding: 15px;
+    min-width: 300px;
+    max-width: 400px;
+}
+
+.scoreboard-section h3 {
+    margin: 0 0 15px 0;
+    text-align: center;
+    color: #333;
+}
+
+.scoreboard-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+}
+
+.scoreboard-tabs button {
+    flex: 1;
+    padding: 8px 12px;
+    cursor: pointer;
+    background: #e0e0e0;
+    border: 2px solid;
+    border-color: #fff #808080 #808080 #fff;
+    font-size: 12px;
+}
+
+.scoreboard-tabs button.active {
+    background: #c0c0c0;
+    border-color: #808080 #fff #fff #808080;
+    font-weight: bold;
+}
+
+.scoreboard {
+    min-height: 100px;
+}
+
+.scoreboard .loading,
+.scoreboard .no-scores {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+}
+
+.scoreboard table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.scoreboard th,
+.scoreboard td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.scoreboard th {
+    background: #f5f5f5;
+    font-weight: bold;
+}
+
+.scoreboard tr:hover {
+    background: #f9f9f9;
+}

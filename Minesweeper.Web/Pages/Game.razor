@@ -3,6 +3,9 @@
 @using Minesweeper.Core
 @using Minesweeper.Core.Models
 @using Minesweeper.Core.Solver
+@using Minesweeper.Web.Services
+@using Minesweeper.Web.Models
+@inject ScoreService ScoreService
 
 <PageTitle>Minesweeper</PageTitle>
 
@@ -44,12 +47,71 @@
 
     @if (_board.State == GameState.Won)
     {
-        <div class="message win">You Win! Time: @ElapsedSeconds seconds</div>
+        <div class="message win">
+            <div>You Win! Time: @ElapsedSeconds seconds</div>
+            @if (!_scoreSubmitted && !_isAiGame)
+            {
+                <div class="score-submit">
+                    <input type="text" @bind="_playerName" placeholder="Enter your name" maxlength="20" />
+                    <button @onclick="SubmitScore" disabled="@_submittingScore">
+                        @(_submittingScore ? "Submitting..." : "Submit Score")
+                    </button>
+                </div>
+            }
+            @if (_scoreSubmitted)
+            {
+                <div class="score-submitted">Score submitted!</div>
+            }
+        </div>
     }
     @if (_board.State == GameState.Lost)
     {
         <div class="message lose">Game Over!</div>
     }
+
+    <div class="scoreboard-section">
+        <h3>Leaderboard</h3>
+        <div class="scoreboard-tabs">
+            <button class="@(_scoreboardTab == "daily" ? "active" : "")" @onclick='() => LoadScores("daily")'>Today</button>
+            <button class="@(_scoreboardTab == "weekly" ? "active" : "")" @onclick='() => LoadScores("weekly")'>This Week</button>
+            <button class="@(_scoreboardTab == "alltime" ? "active" : "")" @onclick='() => LoadScores("alltime")'>All Time</button>
+        </div>
+        <div class="scoreboard">
+            @if (_loadingScores)
+            {
+                <div class="loading">Loading...</div>
+            }
+            else if (_scores.Count == 0)
+            {
+                <div class="no-scores">No scores yet. Be the first!</div>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Player</th>
+                            <th>Time</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < _scores.Count; i++)
+                        {
+                            var score = _scores[i];
+                            <tr>
+                                <td>@(i + 1)</td>
+                                <td>@score.PlayerName</td>
+                                <td>@score.TimeSeconds s</td>
+                                <td>@score.CreatedAt.ToLocalTime().ToString("MM/dd")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
 </div>
 
 @code {
@@ -61,6 +123,14 @@
     private bool _aiRunning = false;
     private CancellationTokenSource? _aiCts;
 
+    private string _playerName = "";
+    private bool _scoreSubmitted = false;
+    private bool _submittingScore = false;
+    private bool _isAiGame = false;
+    private List<Score> _scores = new();
+    private bool _loadingScores = false;
+    private string _scoreboardTab = "daily";
+
     private int RemainingMines => _board.MineCount - _board.GetFlagCount();
     private string SmileyFace => _board.State switch
     {
@@ -69,9 +139,10 @@
         _ => "🙂"
     };
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         NewGame();
+        await LoadScores("daily");
     }
 
     private void NewGame()
@@ -79,6 +150,8 @@
         StopAI();
         _board = new GameBoard(_settings);
         ElapsedSeconds = 0;
+        _scoreSubmitted = false;
+        _isAiGame = false;
         _timer?.Stop();
         _timer = new System.Timers.Timer(1000);
         _timer.Elapsed += (s, e) =>
@@ -141,6 +214,7 @@
     {
         if (_aiRunning) return;
         _aiRunning = true;
+        _isAiGame = true;
         _aiCts = new CancellationTokenSource();
         var solver = new MinesweeperSolver(_board);
 
@@ -179,6 +253,43 @@
     {
         _aiCts?.Cancel();
         _aiRunning = false;
+    }
+
+    private async Task SubmitScore()
+    {
+        if (string.IsNullOrWhiteSpace(_playerName) || _scoreSubmitted) return;
+
+        _submittingScore = true;
+        StateHasChanged();
+
+        var success = await ScoreService.SaveScoreAsync(_playerName.Trim(), CurrentDifficulty, ElapsedSeconds);
+
+        if (success)
+        {
+            _scoreSubmitted = true;
+            await LoadScores(_scoreboardTab);
+        }
+
+        _submittingScore = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadScores(string tab)
+    {
+        _scoreboardTab = tab;
+        _loadingScores = true;
+        StateHasChanged();
+
+        _scores = tab switch
+        {
+            "daily" => await ScoreService.GetDailyTopScoresAsync(CurrentDifficulty),
+            "weekly" => await ScoreService.GetWeeklyTopScoresAsync(CurrentDifficulty),
+            "alltime" => await ScoreService.GetAllTimeTopScoresAsync(CurrentDifficulty),
+            _ => new List<Score>()
+        };
+
+        _loadingScores = false;
+        StateHasChanged();
     }
 
     public void Dispose()
