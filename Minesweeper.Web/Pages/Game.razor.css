@@ -267,3 +267,32 @@
 .scoreboard tr:hover {
     background: #f9f9f9;
 }
+
+.bot-warning {
+    margin-top: 15px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+    text-align: center;
+    animation: pulse 2s infinite;
+    max-width: 350px;
+}
+
+.bot-warning .robot-icon {
+    font-size: 24px;
+    margin-right: 8px;
+}
+
+.bot-warning .bot-confirmed {
+    margin-top: 8px;
+    font-size: 12px;
+    opacity: 0.9;
+    font-style: italic;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}

@@ -45,6 +45,18 @@
         <button @onclick="StopAI" disabled="@(!_aiRunning)">Stop AI</button>
     </div>
 
+    @if (!string.IsNullOrEmpty(_botWarning))
+    {
+        <div class="bot-warning">
+            <span class="robot-icon">🤖</span>
+            <span>@_botWarning</span>
+            @if (_suspicionLevel >= 6)
+            {
+                <div class="bot-confirmed">Score submission disabled for suspected bots!</div>
+            }
+        </div>
+    }
+
     @if (_board.State == GameState.Won)
     {
         <div class="message win">
@@ -131,6 +143,12 @@
     private bool _loadingScores = false;
     private string _scoreboardTab = "daily";
 
+    // Bot detection
+    private List<double> _clickIntervals = new();
+    private DateTime _lastClickTime = DateTime.MinValue;
+    private int _suspicionLevel = 0;
+    private string _botWarning = "";
+
     private int RemainingMines => _board.MineCount - _board.GetFlagCount();
     private string SmileyFace => _board.State switch
     {
@@ -152,6 +170,10 @@
         ElapsedSeconds = 0;
         _scoreSubmitted = false;
         _isAiGame = false;
+        _clickIntervals.Clear();
+        _lastClickTime = DateTime.MinValue;
+        _suspicionLevel = 0;
+        _botWarning = "";
         _timer?.Stop();
         _timer = new System.Timers.Timer(1000);
         _timer.Elapsed += (s, e) =>
@@ -178,6 +200,17 @@
     private void RevealCell(int row, int col)
     {
         if (_aiRunning) return;
+
+        // Bot detection: track click timing
+        var now = DateTime.Now;
+        if (_lastClickTime != DateTime.MinValue)
+        {
+            var interval = (now - _lastClickTime).TotalMilliseconds;
+            _clickIntervals.Add(interval);
+            CheckForBot();
+        }
+        _lastClickTime = now;
+
         var prevState = _board.State;
         _board.RevealCell(row, col);
         if (prevState == GameState.NotStarted && _board.State == GameState.InProgress)
@@ -290,6 +323,64 @@
 
         _loadingScores = false;
         StateHasChanged();
+    }
+
+    private static readonly string[] BotWarnings = new[]
+    {
+        "Hmm... you're clicking awfully fast there, friend.",
+        "Are you a robot? Blink twice if you need help.",
+        "I've seen bots click slower than this!",
+        "Whoa there, Speedy McClickface!",
+        "My robot senses are tingling...",
+        "Either you're a bot, or you've had WAY too much coffee.",
+        "Beep boop? Is that you, fellow robot?",
+        "The machines are taking over! Oh wait, that might be you.",
+        "Human verification failed. Just kidding... or am I?",
+        "You click with the precision of a thousand CPUs.",
+    };
+
+    private void CheckForBot()
+    {
+        if (_clickIntervals.Count < 5) return;
+
+        // Get last 10 intervals (or less if not available)
+        var recentIntervals = _clickIntervals.TakeLast(10).ToList();
+
+        // Calculate average and standard deviation
+        var avg = recentIntervals.Average();
+        var stdDev = Math.Sqrt(recentIntervals.Average(x => Math.Pow(x - avg, 2)));
+
+        // Bot indicators:
+        // 1. Very fast clicks (avg < 150ms)
+        // 2. Very consistent timing (low standard deviation < 50ms)
+        // 3. Suspiciously robotic pattern
+
+        bool isSuspiciouslyFast = avg < 150;
+        bool isSuspiciouslyConsistent = stdDev < 50 && recentIntervals.Count >= 5;
+
+        if (isSuspiciouslyFast && isSuspiciouslyConsistent)
+        {
+            _suspicionLevel = Math.Min(_suspicionLevel + 2, 10);
+        }
+        else if (isSuspiciouslyFast || isSuspiciouslyConsistent)
+        {
+            _suspicionLevel = Math.Min(_suspicionLevel + 1, 10);
+        }
+        else
+        {
+            _suspicionLevel = Math.Max(_suspicionLevel - 1, 0);
+        }
+
+        // Show warning at different suspicion levels
+        if (_suspicionLevel >= 3 && string.IsNullOrEmpty(_botWarning))
+        {
+            var random = new Random();
+            _botWarning = BotWarnings[random.Next(BotWarnings.Length)];
+        }
+        else if (_suspicionLevel >= 6)
+        {
+            _isAiGame = true; // Mark as AI game to prevent score submission
+        }
     }
 
     public void Dispose()
