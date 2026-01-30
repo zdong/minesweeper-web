@@ -1,0 +1,189 @@
+@page "/"
+@page "/game"
+@using Minesweeper.Core
+@using Minesweeper.Core.Models
+@using Minesweeper.Core.Solver
+
+<PageTitle>Minesweeper</PageTitle>
+
+<div class="game-container">
+    <div class="header">
+        <div class="mine-counter">@RemainingMines.ToString("D3")</div>
+        <button class="smiley-btn" @onclick="NewGame">@SmileyFace</button>
+        <div class="timer">@ElapsedSeconds.ToString("D3")</div>
+    </div>
+
+    <div class="difficulty-selector">
+        <button class="@(CurrentDifficulty == "Beginner" ? "active" : "")" @onclick="SetBeginner">Beginner</button>
+        <button class="@(CurrentDifficulty == "Intermediate" ? "active" : "")" @onclick="SetIntermediate">Intermediate</button>
+        <button class="@(CurrentDifficulty == "Expert" ? "active" : "")" @onclick="SetExpert">Expert</button>
+    </div>
+
+    <div class="board" style="grid-template-columns: repeat(@_board.Columns, 30px);">
+        @for (int r = 0; r < _board.Rows; r++)
+        {
+            @for (int c = 0; c < _board.Columns; c++)
+            {
+                var row = r;
+                var col = c;
+                var cell = _board.GetCell(row, col)!;
+                <div class="cell @GetCellClass(cell)"
+                     @onclick="() => RevealCell(row, col)"
+                     @oncontextmenu="() => ToggleFlag(row, col)"
+                     @oncontextmenu:preventDefault="true">
+                    @GetCellContent(cell)
+                </div>
+            }
+        }
+    </div>
+
+    <div class="controls">
+        <button @onclick="StartAI" disabled="@_aiRunning">@(_aiRunning ? "AI Running..." : "AI Auto-Play")</button>
+        <button @onclick="StopAI" disabled="@(!_aiRunning)">Stop AI</button>
+    </div>
+
+    @if (_board.State == GameState.Won)
+    {
+        <div class="message win">You Win! Time: @ElapsedSeconds seconds</div>
+    }
+    @if (_board.State == GameState.Lost)
+    {
+        <div class="message lose">Game Over!</div>
+    }
+</div>
+
+@code {
+    private GameBoard _board = null!;
+    private DifficultySettings _settings = GameConstants.Beginner;
+    private string CurrentDifficulty = "Beginner";
+    private System.Timers.Timer? _timer;
+    private int ElapsedSeconds = 0;
+    private bool _aiRunning = false;
+    private CancellationTokenSource? _aiCts;
+
+    private int RemainingMines => _board.MineCount - _board.GetFlagCount();
+    private string SmileyFace => _board.State switch
+    {
+        GameState.Won => "😎",
+        GameState.Lost => "😵",
+        _ => "🙂"
+    };
+
+    protected override void OnInitialized()
+    {
+        NewGame();
+    }
+
+    private void NewGame()
+    {
+        StopAI();
+        _board = new GameBoard(_settings);
+        ElapsedSeconds = 0;
+        _timer?.Stop();
+        _timer = new System.Timers.Timer(1000);
+        _timer.Elapsed += (s, e) =>
+        {
+            if (_board.State == GameState.InProgress)
+            {
+                ElapsedSeconds++;
+                InvokeAsync(StateHasChanged);
+            }
+        };
+    }
+
+    private void SetBeginner() => SetDifficulty(GameConstants.Beginner, "Beginner");
+    private void SetIntermediate() => SetDifficulty(GameConstants.Intermediate, "Intermediate");
+    private void SetExpert() => SetDifficulty(GameConstants.Expert, "Expert");
+
+    private void SetDifficulty(DifficultySettings settings, string name)
+    {
+        _settings = settings;
+        CurrentDifficulty = name;
+        NewGame();
+    }
+
+    private void RevealCell(int row, int col)
+    {
+        if (_aiRunning) return;
+        var prevState = _board.State;
+        _board.RevealCell(row, col);
+        if (prevState == GameState.NotStarted && _board.State == GameState.InProgress)
+            _timer?.Start();
+        if (_board.State == GameState.Won || _board.State == GameState.Lost)
+            _timer?.Stop();
+    }
+
+    private void ToggleFlag(int row, int col)
+    {
+        if (_aiRunning) return;
+        _board.ToggleFlag(row, col);
+    }
+
+    private string GetCellClass(Cell cell)
+    {
+        if (!cell.IsRevealed)
+            return cell.IsFlagged ? "unrevealed flagged" : "unrevealed";
+        if (cell.IsMine)
+            return cell.IsTriggered ? "mine triggered" : "mine";
+        return $"revealed n{cell.AdjacentMines}";
+    }
+
+    private string GetCellContent(Cell cell)
+    {
+        if (!cell.IsRevealed)
+            return cell.IsFlagged ? "🚩" : "";
+        if (cell.IsMine)
+            return "💣";
+        return cell.AdjacentMines > 0 ? cell.AdjacentMines.ToString() : "";
+    }
+
+    private async void StartAI()
+    {
+        if (_aiRunning) return;
+        _aiRunning = true;
+        _aiCts = new CancellationTokenSource();
+        var solver = new MinesweeperSolver(_board);
+
+        await Task.Run(async () =>
+        {
+            while (!_aiCts.Token.IsCancellationRequested &&
+                   _board.State != GameState.Won &&
+                   _board.State != GameState.Lost)
+            {
+                var move = solver.GetNextMove();
+                if (move == null) break;
+
+                await InvokeAsync(() =>
+                {
+                    if (_board.State == GameState.NotStarted)
+                        _timer?.Start();
+                    if (move.Action == MoveAction.Reveal)
+                        _board.RevealCell(move.Row, move.Column);
+                    else
+                        _board.ToggleFlag(move.Row, move.Column);
+                    StateHasChanged();
+                });
+
+                await Task.Delay(50, _aiCts.Token);
+            }
+            await InvokeAsync(() =>
+            {
+                _aiRunning = false;
+                _timer?.Stop();
+                StateHasChanged();
+            });
+        });
+    }
+
+    private void StopAI()
+    {
+        _aiCts?.Cancel();
+        _aiRunning = false;
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _aiCts?.Cancel();
+    }
+}

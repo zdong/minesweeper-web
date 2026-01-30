@@ -1,0 +1,159 @@
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    font-family: 'Segoe UI', sans-serif;
+    background: #c0c0c0;
+    min-height: 100vh;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: #c0c0c0;
+    padding: 10px 20px;
+    border: 3px solid;
+    border-color: #808080 #fff #fff #808080;
+    margin-bottom: 10px;
+}
+
+.mine-counter, .timer {
+    background: #000;
+    color: #f00;
+    font-family: 'Consolas', monospace;
+    font-size: 24px;
+    font-weight: bold;
+    padding: 5px 10px;
+    min-width: 50px;
+    text-align: center;
+    border: 2px solid;
+    border-color: #808080 #fff #fff #808080;
+}
+
+.smiley-btn {
+    font-size: 28px;
+    width: 50px;
+    height: 50px;
+    cursor: pointer;
+    background: #c0c0c0;
+    border: 3px solid;
+    border-color: #fff #808080 #808080 #fff;
+}
+
+.smiley-btn:active {
+    border-color: #808080 #fff #fff #808080;
+}
+
+.difficulty-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.difficulty-selector button {
+    padding: 8px 16px;
+    cursor: pointer;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #fff #808080 #808080 #fff;
+    font-size: 14px;
+}
+
+.difficulty-selector button.active {
+    background: #a0a0a0;
+    border-color: #808080 #fff #fff #808080;
+}
+
+.board {
+    display: grid;
+    gap: 0;
+    background: #c0c0c0;
+    padding: 10px;
+    border: 3px solid;
+    border-color: #808080 #fff #fff #808080;
+}
+
+.cell {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.cell.unrevealed {
+    background: #c0c0c0;
+    border: 3px solid;
+    border-color: #fff #808080 #808080 #fff;
+}
+
+.cell.unrevealed:hover {
+    background: #d0d0d0;
+}
+
+.cell.revealed {
+    background: #c0c0c0;
+    border: 1px solid #808080;
+}
+
+.cell.mine {
+    background: #c0c0c0;
+    border: 1px solid #808080;
+}
+
+.cell.mine.triggered {
+    background: #ff0000;
+}
+
+.cell.n1 { color: #0000ff; }
+.cell.n2 { color: #008000; }
+.cell.n3 { color: #ff0000; }
+.cell.n4 { color: #000080; }
+.cell.n5 { color: #800000; }
+.cell.n6 { color: #008080; }
+.cell.n7 { color: #000000; }
+.cell.n8 { color: #808080; }
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.controls button {
+    padding: 10px 20px;
+    cursor: pointer;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #fff #808080 #808080 #fff;
+    font-size: 14px;
+}
+
+.controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.message {
+    margin-top: 20px;
+    padding: 15px 30px;
+    font-size: 20px;
+    font-weight: bold;
+    border-radius: 5px;
+}
+
+.message.win {
+    background: #4caf50;
+    color: white;
+}
+
+.message.lose {
+    background: #f44336;
+    color: white;
+}
