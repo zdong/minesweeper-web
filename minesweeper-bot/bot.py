@@ -5,6 +5,7 @@ Uses Playwright to control browser and read game state from DOM.
 import argparse
 import time
 import re
+import random
 from playwright.sync_api import sync_playwright, Page, Locator
 from solver import MinesweeperSolver, MoveAction
 
@@ -21,10 +22,12 @@ DEFAULT_URL = "https://zdong.github.io/minesweeper-web/"
 
 
 class MinesweeperBot:
-    def __init__(self, page: Page, difficulty: str = "beginner", delay: float = 0.1):
+    def __init__(self, page: Page, difficulty: str = "beginner", delay: float = 0.1, stealth: bool = False):
         self.page = page
         self.difficulty = difficulty
         self.delay = delay
+        self.stealth = stealth
+        self.move_count = 0
         config = DIFFICULTIES[difficulty]
         self.solver = MinesweeperSolver(
             rows=config["rows"],
@@ -104,6 +107,29 @@ class MinesweeperBot:
         if debug:
             print(f"  Board: {revealed_count} revealed, {unrevealed_count} unrevealed")
 
+    def get_human_delay(self) -> float:
+        """Generate a human-like delay with variance to evade bot detection."""
+        if not self.stealth:
+            return self.delay
+
+        # Base delay between 200-400ms (human reaction time)
+        base_delay = random.uniform(0.2, 0.4)
+
+        # Add variance (+/- 100ms) to avoid consistent timing
+        variance = random.uniform(-0.1, 0.1)
+
+        # Occasionally add "thinking" pauses (5% chance)
+        if random.random() < 0.05:
+            thinking_pause = random.uniform(0.5, 1.5)
+            return base_delay + variance + thinking_pause
+
+        # Occasionally add micro-hesitation (15% chance)
+        if random.random() < 0.15:
+            hesitation = random.uniform(0.1, 0.3)
+            return base_delay + variance + hesitation
+
+        return max(0.15, base_delay + variance)  # Minimum 150ms to stay human-like
+
     def click_cell(self, row: int, col: int, right_click: bool = False):
         """Click a cell on the board."""
         config = DIFFICULTIES[self.difficulty]
@@ -111,6 +137,19 @@ class MinesweeperBot:
         index = row * cols + col
 
         cell = self.page.locator(".board .cell").nth(index)
+
+        # In stealth mode, add slight mouse movement randomness
+        if self.stealth:
+            # Get cell bounding box and click at slightly random position within it
+            box = cell.bounding_box()
+            if box:
+                offset_x = random.uniform(-5, 5)
+                offset_y = random.uniform(-5, 5)
+                cell.click(
+                    button="right" if right_click else "left",
+                    position={"x": box["width"]/2 + offset_x, "y": box["height"]/2 + offset_y}
+                )
+                return
 
         if right_click:
             cell.click(button="right")
@@ -129,7 +168,8 @@ class MinesweeperBot:
     def play(self) -> bool:
         """Play the game until win or lose. Returns True if won."""
         print(f"\n{'='*50}")
-        print(f"Starting Minesweeper Bot - {self.difficulty.title()}")
+        stealth_status = " [STEALTH MODE]" if self.stealth else ""
+        print(f"Starting Minesweeper Bot - {self.difficulty.title()}{stealth_status}")
         print(f"{'='*50}\n")
 
         # Select difficulty
@@ -147,6 +187,10 @@ class MinesweeperBot:
 
             if game_state == "won":
                 print(f"\n*** WON after {move_count} moves! ***")
+                # Check if bot was detected
+                bot_warning = self.page.locator(".bot-warning")
+                if bot_warning.count() > 0 and bot_warning.is_visible():
+                    print(">>> BOT DETECTED! Game flagged you as a bot! <<<")
                 return True
             elif game_state == "lost":
                 print(f"\n*** LOST after {move_count} moves! ***")
@@ -173,7 +217,9 @@ class MinesweeperBot:
                 right_click=(move.action == MoveAction.FLAG)
             )
 
-            time.sleep(self.delay)
+            # Use human-like delay in stealth mode, otherwise use fixed delay
+            delay = self.get_human_delay() if self.stealth else self.delay
+            time.sleep(delay)
 
 
 def main():
@@ -210,6 +256,11 @@ def main():
         "--submit-name",
         help="Name to submit to leaderboard on win (optional)"
     )
+    parser.add_argument(
+        "--stealth",
+        action="store_true",
+        help="Enable stealth mode to evade bot detection (human-like timing)"
+    )
 
     args = parser.parse_args()
 
@@ -231,7 +282,8 @@ def main():
             bot = MinesweeperBot(
                 page=page,
                 difficulty=args.difficulty,
-                delay=args.delay
+                delay=args.delay,
+                stealth=args.stealth
             )
 
             won = bot.play()
