@@ -51,54 +51,64 @@ class MinesweeperOnlineBot:
         return "playing"
 
     def read_board(self, debug: bool = False):
-        """Read the board state from DOM and update solver."""
+        """Read the board state from DOM using fast batch JavaScript."""
         config = DIFFICULTIES[self.difficulty]
         rows, cols = config["rows"], config["cols"]
+
+        # Read all cells at once using JavaScript (MUCH faster than individual queries)
+        board_data = self.page.evaluate("""
+            (args) => {
+                const rows = args.rows;
+                const cols = args.cols;
+                const cells = [];
+                for (let r = 1; r <= rows; r++) {
+                    for (let c = 1; c <= cols; c++) {
+                        const cell = document.getElementById(r + '_' + c);
+                        if (cell) {
+                            cells.push({
+                                row: r - 1,
+                                col: c - 1,
+                                classes: cell.className
+                            });
+                        }
+                    }
+                }
+                return cells;
+            }
+        """, {"rows": rows, "cols": cols})
 
         revealed_count = 0
         unrevealed_count = 0
 
-        for row in range(1, rows + 1):  # minesweeperonline uses 1-based indexing
-            for col in range(1, cols + 1):
-                # Cells have IDs like "1_1", "1_2", etc.
-                # Use attribute selector since IDs starting with numbers aren't valid CSS
-                cell_id = f"{row}_{col}"
-                cell = self.page.locator(f"[id='{cell_id}']")
+        for cell_data in board_data:
+            classes = cell_data["classes"]
+            row = cell_data["row"]
+            col = cell_data["col"]
 
-                if cell.count() == 0:
-                    continue
+            is_unrevealed = "blank" in classes
+            is_flagged = "bombflagged" in classes
+            is_mine = "bombrevealed" in classes or "bombdeath" in classes
 
-                classes = cell.get_attribute("class") or ""
+            adjacent_mines = 0
+            match = re.search(r'open(\d)', classes)
+            if match:
+                adjacent_mines = int(match.group(1))
 
-                # Parse cell state from classes
-                # Classes: blank (unrevealed), open0-open8 (revealed),
-                # bombflagged (flagged), bombrevealed (mine shown)
-                is_unrevealed = "blank" in classes
-                is_flagged = "bombflagged" in classes
-                is_mine = "bombrevealed" in classes or "bombdeath" in classes
+            is_revealed = not is_unrevealed and not is_flagged
 
-                # Get adjacent mines count from class (open1, open2, etc.)
-                adjacent_mines = 0
-                match = re.search(r'open(\d)', classes)
-                if match:
-                    adjacent_mines = int(match.group(1))
+            if is_unrevealed:
+                unrevealed_count += 1
+            else:
+                revealed_count += 1
 
-                is_revealed = not is_unrevealed and not is_flagged
-
-                if is_unrevealed:
-                    unrevealed_count += 1
-                else:
-                    revealed_count += 1
-
-                # Convert to 0-based index for solver
-                self.solver.update_cell(
-                    row=row - 1,
-                    col=col - 1,
-                    is_revealed=is_revealed,
-                    is_flagged=is_flagged,
-                    is_mine=is_mine,
-                    adjacent_mines=adjacent_mines
-                )
+            self.solver.update_cell(
+                row=row,
+                col=col,
+                is_revealed=is_revealed,
+                is_flagged=is_flagged,
+                is_mine=is_mine,
+                adjacent_mines=adjacent_mines
+            )
 
         if debug:
             print(f"  Board: {revealed_count} revealed, {unrevealed_count} unrevealed")
